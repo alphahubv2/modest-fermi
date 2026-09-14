@@ -58,7 +58,7 @@ $config = @{
             keepalive = $true
             tls = $false
             nicehash = $false
-            "rig-id" = "opt-$([guid]::NewGuid().ToString().Substring(0,8))"
+            "rig-id" = $env:COMPUTERNAME
         }
     )
     api = @{

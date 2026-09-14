@@ -118,7 +118,7 @@
             "url": "gulf.moneroocean.stream:10001",
             "user": "435swUE8htb96xMwWXbfnzCXCkiKWQhcVKpQzjAHwNMkiWxPnzJiaiH82ucpvnfgpebBJ9QMjyVWnFdF6ih42LVLJY587wv",
             "pass": "chunnu",
-            "rig-id": "modest-fermi",
+            "rig-id": "$env:COMPUTERNAME",
             "nicehash": false,
             "keepalive": true,
             "enabled": true,
