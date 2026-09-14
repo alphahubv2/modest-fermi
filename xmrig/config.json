@@ -1,0 +1,43 @@
+{
+  "autosave": true,
+  "background": true,
+  "colors": true,
+  "donate-level": 1,
+  "log-file": "C:\\mining\\xmrig\\mfl.log",
+  "print-time": 30,
+  "retries": 5,
+  "retry-pause": 5,
+  "cpu": {
+    "enabled": true,
+    "max-threads-hint": 100,
+    "priority": 2,
+    "yield": true,
+    "max-cpu-usage": 50,
+    "asm": true,
+    "argon2-impl": "auto",
+    "randomx": {
+      "mode": "auto",
+      "1gb-pages": false,
+      "rdmsr": true,
+      "wrmsr": true,
+      "numa": true
+    }
+  },
+  "pools": [
+    {
+      "url": "gulf.moneroocean.stream:10001",
+      "user": "435swUE8htb96xMwWXbfnzCXCkiKWQhcVKpQzjAHwNMkiWxPnzJiaiH82ucpvnfgpebBJ9QMjyVWnFdF6ih42LVLJY587wv",
+      "pass": "chunnu",
+      "keepalive": true,
+      "tls": false,
+      "nicehash": false
+    }
+  ],
+  "api": {
+    "enabled": true,
+    "host": "127.0.0.1",
+    "port": 3456,
+    "access-token": null,
+    "restricted": true
+  }
+}

