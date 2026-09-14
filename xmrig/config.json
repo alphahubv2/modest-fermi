@@ -28,73 +28,14 @@
     "cpu": {
         "enabled": true,
         "huge-pages": true,
-        "huge-pages-jit": false,
-        "hw-aes": null,
-        "priority": 2,
+        "huge-pages-jit": true,
+        "hw-aes": true,
+        "priority": 3,
         "memory-pool": false,
-        "yield": true,
+        "yield": false,
         "asm": true,
         "argon2-impl": "auto",
-        "argon2": [0, 2, 4, 5, 6, 8, 10, 11],
-        "cn": [
-            [1, 0],
-            [1, 2],
-            [1, 6],
-            [1, 8]
-        ],
-        "cn-heavy": [
-            [1, 0],
-            [1, 6]
-        ],
-        "cn-lite": [
-            [1, 0],
-            [1, 2],
-            [1, 4],
-            [1, 5],
-            [1, 6],
-            [1, 8],
-            [1, 10],
-            [1, 11]
-        ],
-        "cn-pico": [
-            [2, 0],
-            [2, 1],
-            [2, 2],
-            [2, 3],
-            [2, 4],
-            [2, 5],
-            [2, 6],
-            [2, 7],
-            [2, 8],
-            [2, 9],
-            [2, 10],
-            [2, 11]
-        ],
-        "cn/upx2": [
-            [2, 0],
-            [2, 1],
-            [2, 2],
-            [2, 3],
-            [2, 4],
-            [2, 5],
-            [2, 6],
-            [2, 7],
-            [2, 8],
-            [2, 9],
-            [2, 10],
-            [2, 11]
-        ],
-        "ghostrider": [
-            [8, 0],
-            [8, 2],
-            [8, 6],
-            [8, 8]
-        ],
-        "rx": [0, 2, 6, 8],
-        "rx/arq": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
-        "rx/wow": [0, 2, 4, 5, 6, 8, 10, 11],
-        "cn-lite/0": false,
-        "cn/0": false
+        "max-threads-hint": 100
     },
     "opencl": {
         "enabled": false,

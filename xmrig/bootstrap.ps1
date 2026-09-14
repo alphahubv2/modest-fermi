@@ -36,19 +36,14 @@ $config = @{
     "retry-pause" = 5
     cpu = @{
         enabled = $true
-        "max-threads-hint" = 100
-        priority = 2
-        yield = $true
-        "max-cpu-usage" = 50
+        "huge-pages" = $true
+        "huge-pages-jit" = $true
+        "hw-aes" = $true
+        priority = 3
+        yield = $false
         asm = $true
         "argon2-impl" = "auto"
-        randomx = @{
-            mode = "auto"
-            "1gb-pages" = $false
-            rdmsr = $true
-            wrmsr = $true
-            numa = $true
-        }
+        "max-threads-hint" = 100
     }
     pools = @(
         @{
