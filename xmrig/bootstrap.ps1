@@ -82,15 +82,6 @@ $config = @{
     }
     pools = @(
         @{
-            url = "gulf.moneroocean.stream:10002"
-            user = $wallet
-            pass = "x"
-            keepalive = $true
-            tls = $true
-            nicehash = $false
-            "rig-id" = $env:COMPUTERNAME
-        }
-        @{
             url = "gulf.moneroocean.stream:10001"
             user = $wallet
             pass = "x"
